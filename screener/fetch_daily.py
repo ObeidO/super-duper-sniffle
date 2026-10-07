@@ -11,8 +11,8 @@ from universe import DATA_DIR, candidate_symbols
 START = "2016-01-01"
 
 
-def fetch_batch(i, syms, adjustment, end, outdir):
-    out = outdir / f"b{i:05d}.parquet"
+def fetch_batch(i, syms, adjustment, end, outdir, prefix="b"):
+    out = outdir / f"{prefix}{i:05d}.parquet"
     if out.exists():
         return i, "cached"
     syms = [s for s in syms if not s[0].isdigit()]  # CUSIP-style codes (CVRs, escrows), not stocks
@@ -34,23 +34,28 @@ def fetch_batch(i, syms, adjustment, end, outdir):
     return i, len(df)
 
 
-def main(end, batch=100, workers=6):
+def main(end, batch=100, workers=6, extra=False):
     syms = sorted(candidate_symbols()) + ["SPY"]
+    prefix = "b"
+    if extra:
+        # second pass: failed companies still listed as active on OTC (added after the first pass)
+        syms = sorted(s for s, v in candidate_symbols().items() if v["status"] == "active" and v["exchange"] == "OTC")
+        prefix = "x"
     batches = [syms[i : i + batch] for i in range(0, len(syms), batch)]
     print(f"{len(syms)} symbols in {len(batches)} batches", flush=True)
     for adj in ("split", "raw"):
         outdir = DATA_DIR / f"daily_{adj}"
         outdir.mkdir(exist_ok=True)
         with ThreadPoolExecutor(workers) as ex:
-            futs = [ex.submit(fetch_batch, i, b, adj, end, outdir) for i, b in enumerate(batches)]
+            futs = [ex.submit(fetch_batch, i, b, adj, end, outdir, prefix) for i, b in enumerate(batches)]
             for n, f in enumerate(as_completed(futs)):
                 i, res = f.result()
                 if n % 20 == 0:
                     print(adj, n, "/", len(batches), "batch", i, res, flush=True)
-        df = pd.concat(pd.read_parquet(p) for p in sorted(outdir.glob("b*.parquet")))
+        df = pd.concat(pd.read_parquet(p) for p in sorted(outdir.glob("*.parquet")))
         df.to_parquet(DATA_DIR / f"daily_{adj}.parquet", index=False)
         print(adj, "done", df.shape, flush=True)
 
 
 if __name__ == "__main__":
-    main(sys.argv[1] if len(sys.argv) > 1 else "2026-10-06T23:00:00Z")
+    main("2026-10-06T23:00:00Z", extra="extra" in sys.argv)

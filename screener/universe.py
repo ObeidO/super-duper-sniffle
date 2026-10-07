@@ -30,7 +30,9 @@ def candidate_symbols():
             continue
         if NON_STOCK.search(name):
             continue
-        if status == "active" and exch not in ("NYSE", "NASDAQ"):
+        if status == "active" and exch not in ("NYSE", "NASDAQ", "OTC"):
+            continue
+        if status == "active" and exch == "OTC" and FOREIGN_OTC.match(sym):
             continue
         if status == "inactive":
             # Delisted names often end up tagged OTC; keep them (the point-in-time

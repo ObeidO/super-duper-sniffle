@@ -147,7 +147,7 @@ def main():
     print("today", today, "session" if is_session else "no session", "previous session", prev, "trade day", trade_day)
 
     cand = tradable_symbols()
-    active = sorted(s for s, v in cand.items() if v["status"] == "active") + ["SPY"]
+    active = sorted(s for s, v in cand.items() if v["status"] == "active" and v["exchange"] in ("NYSE", "NASDAQ")) + ["SPY"]
     end = (now_utc() - timedelta(minutes=16)).strftime("%Y-%m-%dT%H:%M:%SZ")
     start = (pd.Timestamp(prev) - pd.Timedelta(days=700)).strftime("%Y-%m-%d")
     sp = fetch_recent(active, start, end, "split")
@@ -160,7 +160,7 @@ def main():
     dates = sorted(sp.loc[sp.symbol == "SPY", "date"].unique().tolist()) + [trade_day]
     W = {k: sp.pivot(index="date", columns="symbol", values=k).reindex(dates) for k in "ohlcv"}
     craw = rw.pivot(index="date", columns="symbol", values="c").reindex(dates)
-    craw = craw.reindex(columns=W["c"].columns).ffill(limit=0)
+    craw = craw.reindex(columns=W["c"].columns)
     cols = [c for c in W["c"].columns if c != "SPY"]
     # raw close for the price filter: only the most recent ~10 days are fetched raw; the
     # features themselves only need split-adjusted data, so fill older raw rows from adjusted.
@@ -173,7 +173,8 @@ def main():
     X["entry_weekday"] = float(pd.Timestamp(trade_day).dayofweek)
     X = X[liq_prev.reindex(X.index).fillna(False).values & X["atr_pct"].notna().values]
 
-    model = lgb.Booster(model_file=str(ROOT / "models" / f"{cfg}.txt"))
+    # the latest walk-forward model: its scores are on the same scale as the calibration tables
+    model = lgb.Booster(model_file=str(ROOT / "models" / f"{cfg}_wf.txt"))
     X = X[model.feature_name()]
     p = pd.Series(model.predict(X.values), index=X.index).sort_values(ascending=False)
     calib = research["calibration"][cfg]

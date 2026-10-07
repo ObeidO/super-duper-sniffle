@@ -1,12 +1,9 @@
 """Look-ahead audit.
 
-1) Truncation test: rebuild every feature using only data up to a cutoff date, then
-   compare the row for the next entry day with the same row from the full-history build.
-   Any feature that secretly uses later data would differ.
-2) Label/feature separation: the entry-day row must not depend on the entry-day bar.
-   We blank the entry day's prices and check features are unchanged.
-3) Canary: a deliberately leaked feature (same-day open-to-high) should look "magical";
-   the real model's out-of-sample AUC should be modest by comparison.
+Truncation test: rebuild every feature using only data up to a cutoff date, with the
+entry day's own bar blanked out, then compare the row for that entry day with the same row
+from the full-history build. Any feature that used the entry-day bar or any later data
+would differ.
 """
 import json
 import sys

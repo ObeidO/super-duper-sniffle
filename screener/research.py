@@ -64,7 +64,7 @@ def base_rates(df, nd):
         d = df[valid_rows(df, nd, h)]
         y = d[f"y_{name}"].values
         r = d[f"r_{name}"].values
-        m, se, n = day_clustered_mean(r, d.date.values)
+        m, se, n = day_clustered_mean(r, cluster_ids(d.date.values, name))
         cfg.append(dict(config=name, stop=stop, horizon=h, win=float((y == LB.WIN).mean()),
                         loss=float((y == LB.LOSS).mean()), timeout=float((y == LB.TIMEOUT).mean()),
                         avg_net=float(m), avg_net_lo=float(ci95(m, se)[0]), avg_net_hi=float(ci95(m, se)[1]), n=int(n)))
@@ -148,7 +148,7 @@ def fit_predict(df, feats, ycol, h, nd, years=TEST_YEARS, subsample=1.0, store_l
     rng = np.random.default_rng(SEED)
     target = (df[ycol].values == LB.WIN).astype(np.float32)
     X = df[feats]
-    model = None
+    model = last_wf = None
     for Y in years + ([None] if store_last else []):
         if Y is None:
             # final model for live use: everything with a fully known outcome
@@ -168,7 +168,8 @@ def fit_predict(df, feats, ycol, h, nd, years=TEST_YEARS, subsample=1.0, store_l
         model = lgb.train(PARAMS, ds, ROUNDS)
         if te is not None:
             pred[te] = model.predict(X.values[te])
-    return pred, model
+            last_wf = model
+    return pred, (last_wf if store_last == "wf" else model)
 
 
 def daily_top(df, score, k=1, mask=None):
@@ -180,11 +181,18 @@ def daily_top(df, score, k=1, mask=None):
     return s.index[rk.values <= k]
 
 
+def cluster_ids(dates, name):
+    # multi-day holds overlap, so cluster by calendar week instead of by day
+    if name.endswith("_h1"):
+        return np.asarray(dates)
+    return pd.to_datetime(pd.Series(dates)).dt.strftime("%G-%V").values
+
+
 def pick_stats(df, idx, name):
     sub = df.loc[idx]
     y = sub[f"y_{name}"].values
     r = sub[f"r_{name}"].values
-    m, se, n = day_clustered_mean(r, sub.date.values)
+    m, se, n = day_clustered_mean(r, cluster_ids(sub.date.values, name))
     k = int((y == LB.WIN).sum())
     lo, hi = wilson(k, n)
     return dict(n=int(n), win=float(k / n) if n else np.nan, win_lo=lo, win_hi=hi,
@@ -269,9 +277,11 @@ def main(stage="all"):
     per_year = {}
     for stop, h in LB.configs():
         name = LB.config_name(stop, h)
-        pred, model = fit_predict(df, feats, f"y_{name}", h, nd, subsample=0.35, store_last=True)
+        pred, model = fit_predict(df, feats, f"y_{name}", h, nd, subsample=0.35, store_last="wf")
         preds[name] = pred
-        model.save_model(str(MODELS / f"{name}.txt"))
+        # the live model is the most recent walk-forward model, so live scores share the
+        # scale of the out-of-sample calibration tables
+        model.save_model(str(MODELS / f"{name}_wf.txt"))
         sel = oos & valid_rows(df, nd, h)
         top1 = daily_top(df[sel], pred[sel])
         top5 = daily_top(df[sel], pred[sel], k=5)
@@ -422,7 +432,7 @@ def main(stage="all"):
     report["families"] = fam_rows
 
     # feature importance (gain) of the final live model
-    mdl = lgb.Booster(model_file=str(MODELS / f"{live_cfg}.txt"))
+    mdl = lgb.Booster(model_file=str(MODELS / f"{live_cfg}_wf.txt"))
     gain = mdl.feature_importance("gain")
     imp = sorted(zip(mdl.feature_name(), gain), key=lambda x: -x[1])
     tot = sum(gain)

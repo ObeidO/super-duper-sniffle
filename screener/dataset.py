@@ -26,12 +26,30 @@ def load_wide(extra_dates=()):
     ever = set(rw.loc[(rw.c >= F.MIN_PRICE) & (dv >= F.MIN_DOLLAR_VOL), "symbol"]) | {"SPY"}
     sp = sp[sp.symbol.isin(ever)]
     rw = rw[rw.symbol.isin(ever)]
+    sp, rw = split_reused_tickers(sp, rw, dates)
     W = {}
     for k in "ohlcv":
         W[k] = sp.pivot(index="date", columns="symbol", values=k).reindex(dates)
     W["craw"] = rw.pivot(index="date", columns="symbol", values="c").reindex(dates)[W["c"].columns]
     W["oraw"] = rw.pivot(index="date", columns="symbol", values="o").reindex(dates)[W["c"].columns]
     return W
+
+
+def split_reused_tickers(sp, rw, dates, gap=60):
+    """A ticker that goes silent for 60+ sessions and comes back is treated as a new series
+    (often a different company reusing the symbol), so its indicators restart from scratch.
+    Earlier segments keep their history under 'SYM~1', 'SYM~2', ..."""
+    pos = {d: i for i, d in enumerate(dates)}
+    out = []
+    for df in (sp, rw):
+        df = df.sort_values(["symbol", "date"]).copy()
+        ix = df.date.map(pos)
+        brk = (ix.diff() > gap) & (df.symbol == df.symbol.shift())
+        seg = brk.groupby(df.symbol).cumsum()
+        last = seg.groupby(df.symbol).transform("max")
+        df["symbol"] = np.where(seg < last, df.symbol + "~" + (seg + 1).astype(str), df.symbol)
+        out.append(df)
+    return out
 
 
 def build_features(W):
@@ -81,7 +99,7 @@ class IntradayResolver:
         self.stats = {"resolved": 0, "same_bar": 0, "missing": 0, "no_touch": 0}
 
     def __call__(self, j, d, T, S):
-        key = (self.cols[j], self.dates[d])
+        key = (self.cols[j].split("~")[0], self.dates[d])
         b = self.bars.get(key)
         if b is None:
             self.stats["missing"] += 1
@@ -115,7 +133,7 @@ def cmd_labels(resolve):
         name = LB.config_name(stop, h)
         out[f"y_{name}"] = code
         out[f"r_{name}"] = LB.net_return(code, ratio).astype(np.float32)
-        needs.update((cols[j], W["c"].index[d]) for j, d, _, _ in need)
+        needs.update((cols[j].split("~")[0], W["c"].index[d]) for j, d, _, _ in need)
         print(name, "win%", round((code == LB.WIN).mean() * 100, 2), "ambig", len(need), flush=True)
     # did the stock touch +3% at any point during the entry day (no stop) - the plain base rate
     t, j = df.t.values, df.j.values
