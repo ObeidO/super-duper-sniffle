@@ -20,6 +20,8 @@ RES = DATA_DIR.parent / "results"
 def wide_subset(symbols, dates):
     sp = pd.read_parquet(DATA_DIR / "daily_split.parquet", filters=[("symbol", "in", symbols)])
     rw = pd.read_parquet(DATA_DIR / "daily_raw.parquet", columns=["symbol", "date", "c"], filters=[("symbol", "in", symbols)])
+    sp = sp.drop_duplicates(["symbol", "date"])
+    rw = rw.drop_duplicates(["symbol", "date"])
     W = {k: sp.pivot(index="date", columns="symbol", values=k).reindex(dates) for k in "ohlcv"}
     W["craw"] = rw.pivot(index="date", columns="symbol", values="c").reindex(dates)[W["c"].columns]
     return W

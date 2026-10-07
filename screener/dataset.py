@@ -17,8 +17,8 @@ from universe import DATA_DIR
 
 
 def load_wide(extra_dates=()):
-    sp = pd.read_parquet(DATA_DIR / "daily_split.parquet")
-    rw = pd.read_parquet(DATA_DIR / "daily_raw.parquet", columns=["symbol", "date", "o", "c", "v"])
+    sp = pd.read_parquet(DATA_DIR / "daily_split.parquet").drop_duplicates(["symbol", "date"])
+    rw = pd.read_parquet(DATA_DIR / "daily_raw.parquet", columns=["symbol", "date", "o", "c", "v"]).drop_duplicates(["symbol", "date"])
     dates = sorted(set(sp.loc[sp.symbol == "SPY", "date"]) | set(extra_dates))
     # only keep symbols that were ever liquid (raw price >= $5 and 20d $vol >= $20M)
     rw = rw.sort_values(["symbol", "date"])
