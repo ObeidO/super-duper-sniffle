@@ -24,10 +24,10 @@ TEST_YEARS = list(range(2019, 2027))
 DISCOVERY_END = "2021-12-31"  # signal tests: discover 2016-2021, confirm 2022-2026
 EMBARGO = 5                   # trading days dropped between train and test
 SEED = 7
-PARAMS = dict(objective="binary", learning_rate=0.03, num_leaves=15, min_data_in_leaf=2000,
+PARAMS = dict(objective="binary", learning_rate=0.05, num_leaves=15, min_data_in_leaf=2000,
               feature_fraction=0.6, bagging_fraction=0.7, bagging_freq=1, lambda_l2=10.0,
               verbose=-1, seed=SEED, num_threads=4)
-ROUNDS = 400
+ROUNDS = 250
 
 
 def load():
@@ -141,7 +141,8 @@ def year_of(df):
     return df.date.str[:4].astype(int).values
 
 
-def fit_predict(df, feats, ycol, h, nd, years=TEST_YEARS, subsample=1.0, store_last=False):
+def fit_predict(df, feats, ycol, h, nd, years=None, subsample=1.0, store_last=False):
+    years = list(TEST_YEARS) if years is None else years
     yrs = year_of(df)
     ok = valid_rows(df, nd, h)
     pred = np.full(len(df), np.nan)
@@ -149,7 +150,7 @@ def fit_predict(df, feats, ycol, h, nd, years=TEST_YEARS, subsample=1.0, store_l
     target = (df[ycol].values == LB.WIN).astype(np.float32)
     X = df[feats]
     model = last_wf = None
-    for Y in years + ([None] if store_last else []):
+    for Y in years + ([None] if store_last is True else []):
         if Y is None:
             # final model for live use: everything with a fully known outcome
             tr = ok.copy()
@@ -161,6 +162,8 @@ def fit_predict(df, feats, ycol, h, nd, years=TEST_YEARS, subsample=1.0, store_l
             t0 = df.t.values[te].min()
             tr = ok & (df.t.values + (h - 1) < t0 - EMBARGO)
         idx = np.flatnonzero(tr)
+        if len(idx) < 10000:
+            continue  # not enough history to train for this year
         if subsample < 1:
             idx = rng.choice(idx, int(len(idx) * subsample), replace=False)
             idx.sort()
@@ -277,7 +280,7 @@ def main(stage="all"):
     per_year = {}
     for stop, h in LB.configs():
         name = LB.config_name(stop, h)
-        pred, model = fit_predict(df, feats, f"y_{name}", h, nd, subsample=0.35, store_last="wf")
+        pred, model = fit_predict(df, feats, f"y_{name}", h, nd, subsample=0.25, store_last="wf")
         preds[name] = pred
         # the live model is the most recent walk-forward model, so live scores share the
         # scale of the out-of-sample calibration tables
@@ -413,7 +416,7 @@ def main(stage="all"):
                     top1=pick_stats(df, idx, MAIN), top10=pick_stats(df, idx10, MAIN))
 
     fam_rows = []
-    pv, _ = fit_predict(df, vol_feats, f"y_{MAIN}", 1, nd, subsample=0.25)
+    pv, _ = fit_predict(df, vol_feats, f"y_{MAIN}", 1, nd, subsample=0.15)
     base_eval = evaluate(pv, "volatility only")
     fam_rows.append(dict(family="volatility (baseline)", kind="baseline", **base_eval))
     full_eval = evaluate(preds[MAIN], "all signals")
@@ -422,9 +425,9 @@ def main(stage="all"):
         if fname == "volatility":
             continue
         fx = vol_feats + [f for f in feats if fam[f] == fname]
-        p_add, _ = fit_predict(df, fx, f"y_{MAIN}", 1, nd, subsample=0.25)
+        p_add, _ = fit_predict(df, fx, f"y_{MAIN}", 1, nd, subsample=0.15)
         fx2 = [f for f in feats if fam[f] != fname]
-        p_drop, _ = fit_predict(df, fx2, f"y_{MAIN}", 1, nd, subsample=0.25)
+        p_drop, _ = fit_predict(df, fx2, f"y_{MAIN}", 1, nd, subsample=0.15)
         ea, ed = evaluate(p_add, f"volatility + {fname}"), evaluate(p_drop, f"all minus {fname}")
         fam_rows.append(dict(family=fname, kind="add", **ea))
         fam_rows.append(dict(family=fname, kind="drop", **ed))
