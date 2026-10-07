@@ -390,7 +390,8 @@ function renderTools() {
     <th class="sort" data-k="signal">Signal</th><th class="sort" data-k="family">Family</th>
     <th class="sort num" data-k="disc_n">n (2016–21)</th><th class="sort num" data-k="disc_win">Hit when on</th><th class="sort num" data-k="disc_base">Same-volatility base</th><th class="sort num" data-k="disc_lift">Lift</th><th class="sort num" data-k="disc_q">q-value</th>
     <th class="sort num" data-k="conf_n">n (2022–26)</th><th class="sort num" data-k="conf_lift">Lift</th><th class="sort num" data-k="conf_p">p</th><th class="sort num" data-k="conf_net_lift">Net lift / trade</th><th class="sort" data-k="confirmed">Confirmed</th></tr></thead><tbody></tbody></table></div>
-  <p class="small muted">Lift = hit rate when the signal is on minus the hit rate of same-volatility stocks that day (percentage points). q-value = false-discovery-adjusted p-value. Confirmed = q &lt; 0.05 in 2016–21 and the same direction with p &lt; 0.05 in 2022–26.</p>`;
+  <p class="small muted">Lift = hit rate when the signal is on minus the hit rate of same-volatility stocks that day (percentage points). q-value = false-discovery-adjusted p-value. Confirmed = q &lt; 0.05 in 2016–21 and the same direction with p &lt; 0.05 in 2022–26.
+  Market-condition signals (SPY trend, breadth) have the same value for every stock on a given day, so they cannot be ranked stock against stock and appear only in the family test above.</p>`;
   let key = "disc_lift", dir = -1;
   const draw = () => {
     const f = document.getElementById("fsel").value, c = document.getElementById("conf").checked, q = document.getElementById("q").value.toLowerCase();
@@ -437,6 +438,8 @@ function renderMethod() {
     <li>A ticker reused by a different company over time can be mixed up. Dividends are not adjusted (ex-dividend days look like small drops).</li>
     <li>The opening price is assumed fillable with ${(R.costs.cost_side * 100).toFixed(2)}% slippage. Real fills on volatile names at the open can be worse, especially for large orders.</li>
     <li>5-minute bars can hide the order of events inside a bar; ties are counted as losses, which makes results slightly pessimistic.</li>
+    <li>The target counts as reached when the high touches it exactly, and a stop fills at the stop price less slippage even when price jumps through it during the day. Both make results slightly optimistic; the same-bar loss rule above pushes the other way.</li>
+    <li>The stop distance used live is the one that did best across the out-of-sample years, which flatters it a little. The live log below the Today tab is the only truly untouched test.</li>
     <li>The probability shown is the historical frequency for similar scores. It is not a promise, and markets change.</li>
     <li>Data: Alpaca free plan, full-market (SIP) history from 2016. The pre-market price check uses data delayed 15 minutes, topped up with the IEX feed.</li>
   </ul>

@@ -35,6 +35,8 @@ def main():
     best_by_h = {}
     for h in LB.HORIZONS:
         rows = [c for c in cf if c["horizon"] == h]
+        if not rows:
+            continue
         b = max(rows, key=lambda c: c["top1"]["avg_net"])
         best_by_h[h] = b
     parts = [f"{'same day' if h == 1 else str(h) + '-day hold'}: best {b['stop']*100:.1f}% stop, hit {b['top1']['win']*100:.1f}%, "

@@ -236,7 +236,10 @@ def baselines(df, name, h, nd, oos):
 def calibration_table(df, pred, name, sel):
     d = df[sel]
     p = pred[sel]
-    edges = [0, .1, .15, .2, .25, .3, .35, .4, .45, .5, .55, .6, .65, .7, 1.01]
+    # score bands by percentile of all out-of-sample scores, finest at the top where picks live
+    qs = [0, .5, .75, .9, .95, .98, .99, .995, .998, .999, 1]
+    edges = list(np.unique(np.quantile(p[~np.isnan(p)], qs)))
+    edges[0], edges[-1] = 0.0, 1.01
     rows = []
     for a, b in zip(edges[:-1], edges[1:]):
         s = (p >= a) & (p < b)
