@@ -57,7 +57,7 @@ def main(n_symbols=250, n_cutoffs=6, seed=3):
         for name in full:
             a = full[name].loc[[ed]].values.astype(float)
             b = tr[name].values.astype(float)
-            both_nan = np.isnan(a) & np.isnan(b)
+            both_nan = (np.isnan(a) & np.isnan(b)) | (a == b)  # a == b also covers matching +/-inf
             diff = np.where(both_nan, 0, np.abs(a - b) / (np.abs(a) + 1e-9))
             diff = np.where(np.isnan(diff), 1.0, diff)  # one NaN, the other not -> mismatch
             worst[name] = max(worst.get(name, 0.0), float(np.nanmax(diff)))
