@@ -1,0 +1,2 @@
+date,kind,symbol,config,stop,predicted_prob,calib_n,score,ref_price,status
+2026-10-07,no-trade,VEEE,s10_h1,0.01,0.23111812265825282,30426,0.2922256900339367,10.3,pending
