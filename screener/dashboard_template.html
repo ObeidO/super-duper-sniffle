@@ -1,0 +1,448 @@
+<title>Trade of the Day Screener</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,500;12..96,700&family=Public+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: a trading-desk "ticket" — one decision card up top, tabs of evidence below, dense tables in mono. */
+:root {
+  --bg: #f5f6f4; --panel: #ffffff; --ink: #14181a; --ink-2: #4b5459; --ink-3: #7b858a;
+  --rule: #dde1de; --rule-2: #eceeec; --accent: #0f6e78; --accent-soft: #e1eff0;
+  --series-1: #2a78d6; --series-base: #8a8f93; --series-2: #eb6834;
+  --good: #1f7a3a; --good-soft: #e3f2e7; --bad: #b3261e; --bad-soft: #f8e4e2; --warn: #9a6200; --warn-soft: #fbf0d9;
+  --display: "Bricolage Grotesque", "Segoe UI", system-ui, sans-serif;
+  --body: "Public Sans", "Segoe UI", system-ui, sans-serif;
+  --mono: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #111416; --panel: #191d20; --ink: #eef1f0; --ink-2: #b3bcbf; --ink-3: #828c90;
+  --rule: #2c3236; --rule-2: #23282b; --accent: #4fb3bd; --accent-soft: #173236;
+  --series-1: #3987e5; --series-base: #8e9599; --series-2: #d95926;
+  --good: #5cc37a; --good-soft: #17301f; --bad: #ef7a72; --bad-soft: #3a1d1b; --warn: #e2a640; --warn-soft: #33270f;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #111416; --panel: #191d20; --ink: #eef1f0; --ink-2: #b3bcbf; --ink-3: #828c90;
+  --rule: #2c3236; --rule-2: #23282b; --accent: #4fb3bd; --accent-soft: #173236;
+  --series-1: #3987e5; --series-base: #8e9599; --series-2: #d95926;
+  --good: #5cc37a; --good-soft: #17301f; --bad: #ef7a72; --bad-soft: #3a1d1b; --warn: #e2a640; --warn-soft: #33270f;
+  color-scheme: dark; }
+* { box-sizing: border-box; }
+body { background: var(--bg); color: var(--ink); font-family: var(--body); font-size: 15px; line-height: 1.5; }
+.wrap { max-width: 1120px; margin: 0 auto; padding-inline: 16px; padding-block: 20px 48px; }
+header.top { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 8px 24px; margin-bottom: 14px; }
+h1 { font-family: var(--display); font-weight: 700; font-size: 1.6rem; margin: 0; letter-spacing: -0.01em; }
+.meta { color: var(--ink-3); font-size: 0.82rem; font-family: var(--mono); }
+nav.tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--rule); margin-bottom: 20px; overflow-x: auto; position: sticky; top: env(safe-area-inset-top, 0px); background: var(--bg); z-index: 5; }
+nav.tabs button { font: 500 0.92rem var(--body); color: var(--ink-2); background: none; border: 0; padding: 10px 14px; border-bottom: 2px solid transparent; cursor: pointer; white-space: nowrap; }
+nav.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--accent); }
+nav.tabs button:focus-visible, button:focus-visible, select:focus-visible, input:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+h2 { font-family: var(--display); font-weight: 600; font-size: 1.2rem; margin: 28px 0 8px; text-wrap: balance; }
+h3 { font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.06em; color: var(--ink-3); margin: 0 0 6px; }
+p { max-width: 68ch; margin: 0 0 10px; }
+.muted { color: var(--ink-2); }
+.small { font-size: 0.85rem; }
+.mono, td.num, .num { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+
+.ticket { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 20px; display: grid; gap: 18px; }
+.verdict { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.pill { display: inline-flex; align-items: center; gap: 6px; font: 600 0.78rem var(--body); text-transform: uppercase; letter-spacing: 0.06em; padding: 4px 10px; border-radius: 999px; }
+.pill.trade { background: var(--good-soft); color: var(--good); }
+.pill.notrade { background: var(--warn-soft); color: var(--warn); }
+.pill.bad { background: var(--bad-soft); color: var(--bad); }
+.pill.ok { background: var(--good-soft); color: var(--good); }
+.verdict .headline { font-family: var(--display); font-size: 1.5rem; font-weight: 700; margin: 0; text-wrap: balance; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 8px; overflow: hidden; }
+.levels > div { background: var(--panel); padding: 12px 14px; min-width: 0; }
+.levels .v { font-family: var(--mono); font-size: 1.25rem; font-weight: 500; }
+.levels .s { color: var(--ink-3); font-size: 0.8rem; }
+.prob { display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; }
+.probbar { position: relative; height: 12px; background: var(--rule-2); border-radius: 6px; overflow: hidden; }
+.probbar .ci { position: absolute; top: 0; bottom: 0; background: var(--accent-soft); }
+.probbar .pt { position: absolute; top: -2px; bottom: -2px; width: 3px; background: var(--accent); }
+.probbar .be { position: absolute; top: -3px; bottom: -3px; width: 0; border-left: 2px dashed var(--ink-3); }
+ul.reasons { margin: 0; padding-left: 18px; }
+ul.reasons li { margin-bottom: 4px; max-width: 75ch; }
+.grid2 { display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 16px; }
+.grid2 > * { min-width: 0; }
+.card { background: var(--panel); border: 1px solid var(--rule); border-radius: 10px; padding: 16px; min-width: 0; }
+.note { border-left: 3px solid var(--warn); background: var(--warn-soft); padding: 10px 14px; border-radius: 0 8px 8px 0; margin: 12px 0; max-width: 80ch; }
+.note.info { border-left-color: var(--accent); background: var(--accent-soft); }
+
+.tablewrap { overflow-x: auto; border: 1px solid var(--rule); border-radius: 8px; background: var(--panel); }
+table { border-collapse: collapse; width: 100%; font-size: 0.86rem; }
+th, td { padding: 7px 10px; text-align: left; border-bottom: 1px solid var(--rule-2); white-space: nowrap; }
+th { font-weight: 600; color: var(--ink-2); font-size: 0.76rem; text-transform: uppercase; letter-spacing: 0.04em; background: var(--panel); position: sticky; top: 0; cursor: default; }
+th.sort { cursor: pointer; }
+th.sort:hover { color: var(--ink); }
+td.num, th.num { text-align: right; }
+tr.hl td { background: var(--accent-soft); }
+td.wrap { white-space: normal; min-width: 220px; }
+.pos { color: var(--good); } .neg { color: var(--bad); }
+.tag { display: inline-block; font-size: 0.72rem; font-weight: 600; padding: 1px 7px; border-radius: 4px; background: var(--rule-2); color: var(--ink-2); }
+.tag.yes { background: var(--good-soft); color: var(--good); }
+.tag.no { background: var(--bad-soft); color: var(--bad); }
+.tag.weak { background: var(--warn-soft); color: var(--warn); }
+.controls { display: flex; flex-wrap: wrap; gap: 8px 14px; align-items: center; margin: 8px 0 10px; font-size: 0.86rem; }
+select, input[type=search] { font: inherit; padding: 5px 8px; border: 1px solid var(--rule); border-radius: 6px; background: var(--panel); color: var(--ink); }
+.chart { position: relative; width: 100%; }
+.chart svg { display: block; width: 100%; height: auto; overflow: visible; }
+.chart text { fill: var(--ink-3); font: 11px var(--mono); }
+.legend { display: flex; flex-wrap: wrap; gap: 14px; font-size: 0.82rem; color: var(--ink-2); margin: 4px 0 6px; }
+.legend i { display: inline-block; width: 14px; height: 3px; border-radius: 2px; vertical-align: middle; margin-right: 6px; }
+.tip { position: absolute; pointer-events: none; background: var(--panel); border: 1px solid var(--rule); border-radius: 6px; padding: 6px 9px; font: 12px var(--mono); color: var(--ink); box-shadow: 0 4px 14px rgb(0 0 0 / 0.12); white-space: nowrap; z-index: 3; }
+.bar { display: inline-block; height: 8px; border-radius: 2px; vertical-align: middle; }
+.kv { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; font-size: 0.88rem; }
+.kv dt { color: var(--ink-3); } .kv dd { margin: 0; font-family: var(--mono); }
+section[hidden] { display: none !important; }
+ol.steps li, ul.plain li { margin-bottom: 6px; max-width: 78ch; }
+@media (max-width: 520px) { .verdict .headline { font-size: 1.25rem; } .ticket { padding: 14px; } }
+@media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+</style>
+
+<div class="wrap">
+  <header class="top">
+    <h1>Trade of the Day</h1>
+    <div class="meta" id="meta"></div>
+  </header>
+  <nav class="tabs" role="tablist" aria-label="Sections">
+    <button role="tab" id="tab-today" aria-selected="true" data-tab="today">Today</button>
+    <button role="tab" id="tab-cands" aria-selected="false" data-tab="cands">Candidates</button>
+    <button role="tab" id="tab-bt" aria-selected="false" data-tab="bt">Backtest evidence</button>
+    <button role="tab" id="tab-tools" aria-selected="false" data-tab="tools">Which tools worked</button>
+    <button role="tab" id="tab-method" aria-selected="false" data-tab="method">Method and limits</button>
+  </nav>
+
+  <section id="today" role="tabpanel"></section>
+  <section id="cands" role="tabpanel" hidden></section>
+  <section id="bt" role="tabpanel" hidden></section>
+  <section id="tools" role="tabpanel" hidden></section>
+  <section id="method" role="tabpanel" hidden></section>
+</div>
+
+<script>
+const DATA = /*__DATA__*/null;
+const R = DATA.research, T = DATA.today, LOG = DATA.log || [], AUDIT = DATA.audit || {}, REVIEW = DATA.review || null;
+
+const pct = (x, d = 1) => x == null || isNaN(x) ? "–" : (x * 100).toFixed(d) + "%";
+const spct = (x, d = 2) => x == null || isNaN(x) ? "–" : (x >= 0 ? "+" : "") + (x * 100).toFixed(d) + "%";
+const money = x => x == null || isNaN(x) ? "–" : "$" + Number(x).toFixed(2);
+const num = (x, d = 0) => x == null || isNaN(x) ? "–" : Number(x).toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
+const cls = x => x > 0 ? "pos" : x < 0 ? "neg" : "";
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+const cfgLabel = c => { const m = /s(\d+)_h(\d)/.exec(c); return m ? `${(m[1] / 10).toFixed(1)}% stop, ${m[2] === "1" ? "same day" : m[2] + "-day hold"}` : c; };
+const FAMNAME = { volatility: "Volatility (ATR, Bollinger)", trend: "Trend (moving averages, ADX)", momentum: "Momentum (RSI, MACD, stochastics)",
+  volume: "Volume (relative volume, OBV)", candlestick: "Candlestick patterns", support_resistance: "Support and resistance",
+  gaps: "Gaps", relative_strength: "Strength vs SPY", market: "Market conditions", fibonacci: "Fibonacci levels",
+  elliott_approx: "Elliott wave (approximation)" };
+
+// ---------- tabs
+const tabs = [...document.querySelectorAll("nav.tabs button")];
+function show(id) {
+  tabs.forEach(b => b.setAttribute("aria-selected", b.dataset.tab === id));
+  document.querySelectorAll("section[role=tabpanel]").forEach(s => s.hidden = s.id !== id);
+  try { localStorage.setItem("tab", id); } catch (e) {}
+}
+tabs.forEach(b => b.addEventListener("click", () => show(b.dataset.tab)));
+let start = (location.hash || "").slice(1);
+if (!document.getElementById(start)) { try { start = localStorage.getItem("tab") || "today"; } catch (e) { start = "today"; } }
+if (!document.getElementById(start)) start = "today";
+
+document.getElementById("meta").textContent =
+  `Session ${T.trade_day} · data through ${T.data_through} close · built ${T.generated.slice(0, 16).replace("T", " ")} UTC`;
+
+// ---------- small SVG line chart with hover
+function lineChart(el, series, opts = {}) {
+  const W = 860, H = opts.h || 260, m = { l: 52, r: 16, t: 12, b: 26 };
+  const all = series.flatMap(s => s.pts);
+  const xs = all.map(p => p.x), ys = all.map(p => p.y);
+  const x0 = Math.min(...xs), x1 = Math.max(...xs);
+  let y0 = Math.min(...ys, opts.ymin ?? Infinity), y1 = Math.max(...ys, opts.ymax ?? -Infinity);
+  const pad = (y1 - y0) * 0.06 || 0.1; y0 -= pad; y1 += pad;
+  const X = x => m.l + (x - x0) / (x1 - x0 || 1) * (W - m.l - m.r);
+  const Y = y => H - m.b - (y - y0) / (y1 - y0 || 1) * (H - m.t - m.b);
+  const ticks = [];
+  const step = niceStep((y1 - y0) / 4);
+  for (let v = Math.ceil(y0 / step) * step; v <= y1; v += step) ticks.push(v);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(opts.label || "chart")}">`;
+  ticks.forEach(v => s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--rule-2)"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${opts.yfmt ? opts.yfmt(v) : v.toFixed(2)}</text>`);
+  if (opts.ref != null) s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(opts.ref)}" y2="${Y(opts.ref)}" stroke="var(--ink-3)" stroke-dasharray="4 4"/>`;
+  const years = [...new Set(all.map(p => p.label.slice(0, 4)))];
+  years.forEach(yr => { const p = all.find(q => q.label.startsWith(yr)); s += `<text x="${X(p.x)}" y="${H - 8}" text-anchor="start">${yr}</text>`; });
+  series.forEach(se => {
+    const d = se.pts.map((p, i) => (i ? "L" : "M") + X(p.x).toFixed(1) + " " + Y(p.y).toFixed(1)).join("");
+    s += `<path d="${d}" fill="none" stroke="${se.color}" stroke-width="2" stroke-linejoin="round"/>`;
+    const last = se.pts[se.pts.length - 1];
+    s += `<circle cx="${X(last.x)}" cy="${Y(last.y)}" r="4" fill="${se.color}" stroke="var(--panel)" stroke-width="2"/>`;
+  });
+  s += `<line class="xh" y1="${m.t}" y2="${H - m.b}" stroke="var(--ink-3)" stroke-width="1" visibility="hidden"/>`;
+  s += `<rect x="${m.l}" y="${m.t}" width="${W - m.l - m.r}" height="${H - m.t - m.b}" fill="transparent" class="hit"/></svg><div class="tip" hidden></div>`;
+  el.innerHTML = s;
+  const svg = el.querySelector("svg"), tip = el.querySelector(".tip"), xh = el.querySelector(".xh");
+  svg.querySelector(".hit").addEventListener("mousemove", ev => {
+    const r = svg.getBoundingClientRect(); const px = (ev.clientX - r.left) / r.width * W;
+    const xv = x0 + (px - m.l) / (W - m.l - m.r) * (x1 - x0);
+    let rows = series.map(se => { let best = se.pts[0]; for (const p of se.pts) if (Math.abs(p.x - xv) < Math.abs(best.x - xv)) best = p; return [se, best]; });
+    const p0 = rows[0][1];
+    xh.setAttribute("x1", X(p0.x)); xh.setAttribute("x2", X(p0.x)); xh.setAttribute("visibility", "visible");
+    tip.hidden = false;
+    tip.innerHTML = `<div>${esc(p0.label)}</div>` + rows.map(([se, p]) => `<div><span style="color:${se.color}">●</span> ${esc(se.name)}: ${opts.yfmt ? opts.yfmt(p.y) : p.y.toFixed(3)}${p.extra ? " · " + esc(p.extra) : ""}</div>`).join("");
+    const left = Math.min(ev.clientX - r.left + 12, r.width - tip.offsetWidth - 4);
+    tip.style.left = Math.max(0, left) + "px"; tip.style.top = (ev.clientY - r.top - 10) + "px";
+  });
+  svg.querySelector(".hit").addEventListener("mouseleave", () => { tip.hidden = true; xh.setAttribute("visibility", "hidden"); });
+}
+function niceStep(raw) { const p = Math.pow(10, Math.floor(Math.log10(raw || 1))); const f = raw / p; return (f < 1.5 ? 1 : f < 3 ? 2 : f < 7 ? 5 : 10) * p; }
+
+// ---------- calibration chart: predicted vs actual with 95% bars
+function calibChart(el, rows) {
+  const W = 520, H = 300, m = { l: 48, r: 14, t: 12, b: 36 };
+  const mx = Math.min(1, Math.max(0.3, ...rows.map(r => Math.max(r.pred, r.win_hi || 0))) + 0.05);
+  const X = v => m.l + v / mx * (W - m.l - m.r), Y = v => H - m.b - v / mx * (H - m.t - m.b);
+  let s = `<svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Predicted versus actual hit rate">`;
+  for (let v = 0; v <= mx + 1e-9; v += 0.1) {
+    s += `<line x1="${m.l}" x2="${W - m.r}" y1="${Y(v)}" y2="${Y(v)}" stroke="var(--rule-2)"/><text x="${m.l - 6}" y="${Y(v) + 4}" text-anchor="end">${Math.round(v * 100)}%</text>`;
+    s += `<text x="${X(v)}" y="${H - m.b + 16}" text-anchor="middle">${Math.round(v * 100)}%</text>`;
+  }
+  s += `<line x1="${X(0)}" y1="${Y(0)}" x2="${X(mx)}" y2="${Y(mx)}" stroke="var(--ink-3)" stroke-dasharray="4 4"/>`;
+  s += `<text x="${(W + m.l) / 2}" y="${H - 4}" text-anchor="middle">model score (predicted chance)</text>`;
+  rows.forEach(r => {
+    s += `<line x1="${X(r.pred)}" x2="${X(r.pred)}" y1="${Y(r.win_lo)}" y2="${Y(r.win_hi)}" stroke="var(--series-1)" stroke-width="2"/>`;
+    s += `<circle cx="${X(r.pred)}" cy="${Y(r.win)}" r="${Math.max(4, Math.min(9, Math.log10(r.n) * 2))}" fill="var(--series-1)" stroke="var(--panel)" stroke-width="2"><title>score ${pct(r.lo, 0)}–${pct(r.hi, 0)}: reached +3% in ${pct(r.win)} (n = ${num(r.n)})</title></circle>`;
+  });
+  el.innerHTML = s + "</svg>";
+}
+
+// ---------- TODAY
+function renderToday() {
+  const b = T.best, el = document.getElementById("today");
+  const trade = T.decision === "trade";
+  const st = R.walkforward_strategy, edge = R.edge_vs_baseline;
+  const be = R.breakeven && R.breakeven[T.config];
+  const liveNote = b.live_price ? `Pre-market check: last trade ${money(b.live_price)} at ${new Date(b.live_time).toLocaleTimeString("en-US", { timeZone: "America/New_York", hour: "2-digit", minute: "2-digit" })} New York time (${b.live_feed === "sip" ? "all exchanges, 15-min delayed" : "IEX feed"}).` : `No pre-market trades found yet; levels below use the last close (${money(b.prev_close)}).`;
+  el.innerHTML = `
+  <div class="ticket">
+    <div class="verdict">
+      <span class="pill ${trade ? "trade" : "notrade"}">${trade ? "Trade" : "No trade today"}</span>
+      <p class="headline">${trade ? `Buy ${esc(b.symbol)} at the open` : `Nothing clears the bar for ${T.trade_day}`}</p>
+    </div>
+    <p class="muted" style="margin:0">${trade ? "" : `Best candidate shown for reference: <b>${esc(b.symbol)}</b> · ${esc(b.name)}. It is not a recommendation to trade.`}
+      ${trade ? esc(b.name) : ""}</p>
+    <div class="levels">
+      <div><h3>Entry</h3><div class="v">${money(b.est_entry)}</div><div class="s">buy at the opening price; levels move with the real open</div></div>
+      <div><h3>Target +3%</h3><div class="v pos">${money(b.est_target)}</div><div class="s">limit sell at open × 1.03</div></div>
+      <div><h3>Stop −${(T.stop * 100).toFixed(1)}%</h3><div class="v neg">${money(b.est_stop)}</div><div class="s">stop at open × ${(1 - T.stop).toFixed(3)}</div></div>
+      <div><h3>Exit</h3><div class="v">Close</div><div class="s">sell at 15:59 if neither level hit</div></div>
+    </div>
+    <div class="prob">
+      <h3>Measured probability (out-of-sample)</h3>
+      <p style="margin:0">Setups scoring like this reached +3% before the stop in <b>${pct(b.prob)}</b> of cases
+        (95% range ${pct(b.prob_lo)}–${pct(b.prob_hi)}, n = ${num(b.n)} stock-days, ${R.test_years[0]}–${R.test_years[R.test_years.length - 1]}).
+        Average result per trade after costs: <b class="${cls(b.avg_net)}">${spct(b.avg_net)}</b> (95% range ${spct(b.net_lo)} to ${spct(b.net_hi)}).</p>
+      <div class="probbar" aria-hidden="true">
+        <div class="ci" style="left:${(b.prob_lo || 0) * 100}%;width:${((b.prob_hi || 0) - (b.prob_lo || 0)) * 100}%"></div>
+        <div class="pt" style="left:${(b.prob || 0) * 100}%"></div>
+        ${be ? `<div class="be" style="left:${be * 100}%" title="break-even hit rate"></div>` : ""}
+      </div>
+      <p class="small muted" style="margin:0">Bar: 0–100%. Blue mark = measured rate, shaded = 95% range${be ? `, dashed line = break-even hit rate after costs (~${pct(be, 0)})` : ""}.
+      Among days when a stock like this was the model's #1 pick: ${b.top_prob != null ? pct(b.top_prob) + " (n = " + num(b.top_n) + ")" : "–"}.</p>
+    </div>
+    <div>
+      <h3>${trade ? "Why it clears the bar" : "Why it fell short"}</h3>
+      <ul class="reasons">${trade ? `<li>Setups in this score range made money after costs out-of-sample, with the 95% range above zero.</li><li>The model beat a random volatile-stock pick out-of-sample.</li>` : b.reasons.map(r => `<li>${esc(r)}</li>`).join("")}</ul>
+    </div>
+    <p class="small muted" style="margin:0">${liveNote} Recompute target and stop from the actual opening price. Statistical tool, not financial advice.</p>
+  </div>
+  <div class="grid2" style="margin-top:16px">
+    <div class="card"><h3>The bar (fixed before looking at today)</h3>
+      <ol class="small" style="padding-left:18px;margin:0">
+        <li>Stocks scoring in the same range must have made money after costs in past out-of-sample years, with the 95% range above zero.</li>
+        <li>The whole strategy must beat "pick a random stock from the most volatile 10%" after costs, day by day (currently: <b>${edge.beats_baseline ? "yes" : "no"}</b>, difference ${spct(edge.detail["random volatile stock (top 10% ATR)"].diff, 3)} per trade, 95% range ${spct(edge.detail["random volatile stock (top 10% ATR)"].lo, 3)} to ${spct(edge.detail["random volatile stock (top 10% ATR)"].hi, 3)}).</li>
+      </ol></div>
+    <div class="card"><h3>Why this stock ranked first</h3>
+      <dl class="kv">${[["Daily range (ATR)", pct(b.features.atr_pct)], ["Days it touched +3% in last 20", pct(b.features.hit3_20, 0)], ["RSI 14", num(b.features.rsi14, 0)],
+        ["Relative volume", num(b.features.relvol, 2) + "×"], ["vs SPY, 20 days", spct(b.features.rs20, 1)], ["vs 50-day average", spct(b.features.c_sma50, 1)],
+        ["Room to next resistance", pct(b.features.resist_room)], ["Yesterday's move", spct(b.features.roc1, 1)]].map(([k, v]) => `<dt>${k}</dt><dd>${v}</dd>`).join("")}</dl></div>
+    <div class="card"><h3>Market backdrop</h3>
+      <dl class="kv"><dt>SPY vs 50-day avg</dt><dd>${spct(T.market.spy_c_sma50, 1)}</dd><dt>SPY vs 200-day avg</dt><dd>${spct(T.market.spy_c_sma200, 1)}</dd>
+      <dt>SPY last 5 days</dt><dd>${spct(T.market.spy_ret5, 1)}</dd><dt>Stocks above 50-day avg</dt><dd>${pct(T.market.breadth50, 0)}</dd>
+      <dt>Liquid stocks screened</dt><dd>${num(T.universe_size)}</dd><dt>Strategy</dt><dd>${cfgLabel(T.config)}</dd></dl></div>
+  </div>
+  <h2>Live record</h2>
+  <p class="muted small">Each run logs the pick (or the best candidate on "no trade" days) and grades it the next session with 5-minute bars, using the same rules as the backtest.</p>
+  ${renderLog()}`;
+}
+function renderLog() {
+  if (!LOG.length) return `<p class="small muted">No graded picks yet. The first entry is today's.</p>`;
+  const g = LOG.filter(r => r.status === "graded" && r.kind === "trade");
+  const hits = g.filter(r => +r.hit === 1).length;
+  const avgPred = g.length ? g.reduce((a, r) => a + (+r.predicted_prob || 0), 0) / g.length : null;
+  const head = g.length ? `<p class="small">Live trades graded: <b>${g.length}</b> · hit +3%: <b>${hits}</b> (${pct(hits / g.length)}) · average predicted: ${pct(avgPred)}. Too few to judge until there are dozens.</p>` : `<p class="small muted">No graded live trades yet.</p>`;
+  return head + `<div class="tablewrap"><table><thead><tr><th>Date</th><th>Call</th><th>Symbol</th><th class="num">Predicted</th><th>Outcome</th><th class="num">Net</th></tr></thead><tbody>` +
+    LOG.slice().reverse().map(r => `<tr><td class="mono">${esc(r.date)}</td><td>${r.kind === "trade" ? '<span class="tag yes">trade</span>' : '<span class="tag">no trade</span>'}</td><td>${esc(r.symbol)}</td><td class="num">${pct(+r.predicted_prob)}</td><td>${r.status === "graded" ? esc(r.outcome) : "pending"}</td><td class="num ${cls(+r.net_return)}">${r.status === "graded" ? spct(+r.net_return) : "–"}</td></tr>`).join("") + `</tbody></table></div>`;
+}
+
+// ---------- CANDIDATES
+function renderCands() {
+  const el = document.getElementById("cands");
+  el.innerHTML = `<p class="muted">The ${T.candidates.length} highest-scoring liquid stocks for ${T.trade_day}, out of ${num(T.universe_size)} screened. Probabilities are measured out-of-sample for each stock's score range. Levels use the pre-market price when available.</p>
+  <div class="tablewrap"><table><thead><tr><th>#</th><th>Symbol</th><th>Name</th><th class="num">Score</th><th class="num">Hit +3% (measured)</th><th class="num">n</th><th class="num">Avg net / trade</th><th class="num">Ref price</th><th class="num">Target</th><th class="num">Stop</th><th class="num">ATR</th><th class="num">RSI14</th><th class="num">Rel vol</th><th>Clears bar</th></tr></thead><tbody>
+  ${T.candidates.map((c, i) => `<tr class="${i === 0 ? "hl" : ""}"><td class="num">${i + 1}</td><td><b>${esc(c.symbol)}</b></td><td style="max-width:220px;overflow:hidden;text-overflow:ellipsis">${esc(c.name)}</td><td class="num">${c.score.toFixed(3)}</td><td class="num">${pct(c.prob)}</td><td class="num">${num(c.n)}</td><td class="num ${cls(c.avg_net)}">${spct(c.avg_net)}</td><td class="num">${money(c.est_entry)}${c.live_price ? "" : "*"}</td><td class="num">${money(c.est_target)}</td><td class="num">${money(c.est_stop)}</td><td class="num">${pct(c.features.atr_pct)}</td><td class="num">${num(c.features.rsi14)}</td><td class="num">${num(c.features.relvol, 2)}</td><td>${c.clears_bar ? '<span class="tag yes">yes</span>' : '<span class="tag no">no</span>'}</td></tr>`).join("")}
+  </tbody></table></div><p class="small muted">* no pre-market trade yet; previous close shown.</p>`;
+}
+
+// ---------- BACKTEST
+function renderBT() {
+  const el = document.getElementById("bt");
+  const B = R.base, st = R.walkforward_strategy, edge = R.edge_vs_baseline.detail;
+  const cfgs = R.configs;
+  const live = st.live_config;
+  const liveRow = cfgs.find(c => c.config === live);
+  const bl = liveRow.baselines;
+  el.innerHTML = `
+  <h2 style="margin-top:0">Base rate: how often a liquid stock gains 3% anyway</h2>
+  <p>Across ${num(B.n_rows)} stock-days (${num(B.n_days)} sessions, about ${num(B.avg_universe)} liquid stocks per day), a stock touched +3% above its opening price at some point in the session <b>${pct(B.touch3_any)}</b> of the time.
+  With a stop, the question is whether +3% came <i>before</i> the stop. For a random liquid stock with a 2% stop, same day: <b>${pct(B.configs.find(c => c.config === "s20_h1").win)}</b>. It depends mostly on how volatile the stock is:</p>
+  <div class="tablewrap"><table><thead><tr><th>Volatility decile (by ATR%)</th><th class="num">Median ATR</th><th class="num">Touched +3%</th><th class="num">+3% before 2% stop</th><th class="num">Avg net / trade</th><th class="num">n</th></tr></thead><tbody>
+  ${B.by_vol_decile.map(d => `<tr><td>${d.decile === 1 ? "1 (calmest)" : d.decile === 10 ? "10 (most volatile)" : d.decile}</td><td class="num">${pct(d.atr_pct)}</td><td class="num">${pct(d.touch3)}</td><td class="num">${pct(d.win)}</td><td class="num ${cls(d.avg_net)}">${spct(d.avg_net, 3)}</td><td class="num">${num(d.n)}</td></tr>`).join("")}
+  </tbody></table></div>
+
+  <h2>The model vs naive baselines (out-of-sample ${R.test_years[0]}–${R.test_years[R.test_years.length - 1]})</h2>
+  <p>One pick per day, ${cfgLabel(live)}, after costs (${(R.costs.cost_side * 100).toFixed(2)}% per side, plus ${(R.costs.stop_slip * 100).toFixed(2)}% extra slippage on stops).
+  The stop for each test year was chosen using only earlier years.</p>
+  <div class="tablewrap"><table><thead><tr><th>Approach</th><th class="num">Trades</th><th class="num">Hit +3%</th><th class="num">Avg net / trade</th><th class="num">95% range</th></tr></thead><tbody>
+    <tr class="hl"><td><b>Model, walk-forward (what the tool does)</b></td><td class="num">${num(st.n)}</td><td class="num">${pct(st.win)}</td><td class="num ${cls(st.avg_net)}">${spct(st.avg_net, 3)}</td><td class="num">${spct(st.net_ci[0], 3)} to ${spct(st.net_ci[1], 3)}</td></tr>
+    ${Object.entries(bl).map(([k, v]) => `<tr><td>${esc(k)}</td><td class="num">${num(v.n)}</td><td class="num">${pct(v.win)}</td><td class="num ${cls(v.avg_net)}">${spct(v.avg_net, 3)}</td><td class="num">${v.net_lo != null ? spct(v.net_lo, 3) + " to " + spct(v.net_hi, 3) : "–"}</td></tr>`).join("")}
+  </tbody></table></div>
+  <div class="note ${R.edge_vs_baseline.beats_baseline ? "info" : ""}"><b>${R.edge_vs_baseline.beats_baseline ? "The model shows an edge over the volatile-stock baseline." : "No reliable edge over the naive baseline."}</b>
+   Day-by-day difference vs a random pick from the most volatile 10%: ${spct(edge["random volatile stock (top 10% ATR)"].diff, 3)} per trade (95% range ${spct(edge["random volatile stock (top 10% ATR)"].lo, 3)} to ${spct(edge["random volatile stock (top 10% ATR)"].hi, 3)}, n = ${num(edge["random volatile stock (top 10% ATR)"].n)} days).
+   Vs a random liquid stock: ${spct(edge["random liquid stock"].diff, 3)} (95% range ${spct(edge["random liquid stock"].lo, 3)} to ${spct(edge["random liquid stock"].hi, 3)}).</div>
+
+  <h2>Growth of $1, one trade per day, after costs</h2>
+  <div class="legend"><span><i style="background:var(--series-1)"></i>Model pick (walk-forward)</span><span><i style="background:var(--series-base)"></i>Random stock from the most volatile 10%</span></div>
+  <div class="chart" id="eq"></div>
+  <p class="small muted">Full position each day, no leverage, compounding. Hover for daily detail. Dashed line = $1.</p>
+
+  <h2>Which holding period and stop gives better odds?</h2>
+  <p class="muted">Out-of-sample results of the model's #1 daily pick for each combination. Higher hit rates with wide stops do not mean more profit; compare the average net per trade.
+  This table compares 16 variants on the same data, so the best row is partly luck. The live strategy picks its stop by the walk-forward rule above, not from this table.</p>
+  <div class="tablewrap"><table><thead><tr><th>Holding</th><th>Stop</th><th class="num">Hit +3% (model #1)</th><th class="num">Avg net (model #1)</th><th class="num">95% range</th><th class="num">Avg net (top 5)</th><th class="num">Random volatile, net</th><th class="num">Random liquid, hit</th></tr></thead><tbody>
+  ${cfgs.map(c => `<tr class="${c.config === live ? "hl" : ""}"><td>${c.horizon === 1 ? "Same day" : c.horizon + " days"}</td><td>${(c.stop * 100).toFixed(1)}%</td><td class="num">${pct(c.top1.win)}</td><td class="num ${cls(c.top1.avg_net)}">${spct(c.top1.avg_net, 3)}</td><td class="num">${spct(c.top1.net_lo, 2)} to ${spct(c.top1.net_hi, 2)}</td><td class="num ${cls(c.top5.avg_net)}">${spct(c.top5.avg_net, 3)}</td><td class="num ${cls(c.baselines["Random pick among most volatile 10%"].avg_net)}">${spct(c.baselines["Random pick among most volatile 10%"].avg_net, 3)}</td><td class="num">${pct(c.baselines["Random liquid stock"].win)}</td></tr>`).join("")}
+  </tbody></table></div>
+  ${R.horizon_summary ? `<div class="note info">${esc(R.horizon_summary)}</div>` : ""}
+
+  <h2>Is the probability honest? Calibration</h2>
+  <div class="grid2">
+    <div class="card"><div class="chart" id="cal"></div><p class="small muted">Each dot is a score range; height = how often those stock-days actually reached +3% first in later, unseen years. Bars = 95% range. Dashed = perfect calibration.</p></div>
+    <div class="card" style="min-width:0"><div class="tablewrap" style="border:0"><table><thead><tr><th>Score range</th><th class="num">Actual hit</th><th class="num">n</th><th class="num">Avg net</th></tr></thead><tbody>
+    ${R.calibration[live].map(r => `<tr><td class="mono">${pct(r.lo, 0)}–${pct(r.hi, 0)}</td><td class="num">${pct(r.win)}</td><td class="num">${num(r.n)}</td><td class="num ${cls(r.avg_net)}">${spct(r.avg_net, 3)}</td></tr>`).join("")}
+    </tbody></table></div></div>
+  </div>
+
+  <h2>Year by year (model #1 pick, ${cfgLabel(live)})</h2>
+  <div class="tablewrap"><table><thead><tr><th>Year</th><th class="num">Trades</th><th class="num">Hit +3%</th><th class="num">Avg net</th><th class="num">AUC</th></tr></thead><tbody>
+  ${R.per_year[live].map(y => { const a = (R.auc_by_year || []).find(q => q.year === y.year); return `<tr><td>${y.year}</td><td class="num">${num(y.n)}</td><td class="num">${pct(y.win)}</td><td class="num ${cls(y.avg_net)}">${spct(y.avg_net, 3)}</td><td class="num">${a ? a.auc.toFixed(3) : "–"}</td></tr>`; }).join("")}
+  </tbody></table></div>
+  <p class="small muted">AUC measures ranking skill across all stocks that year: 0.5 = coin flip, 1.0 = perfect.</p>
+
+  ${R.gap_buckets ? `<h2>Does the opening gap matter?</h2><p class="muted">The opening price is known at entry, so this can guide a last-second check. Model picks by how they opened vs the prior close:</p>
+  <div class="tablewrap"><table><thead><tr><th>Open vs prior close</th><th class="num">Trades</th><th class="num">Hit +3%</th><th class="num">Avg net</th></tr></thead><tbody>
+  ${R.gap_buckets.map(g => `<tr><td>${esc(g.bucket)}</td><td class="num">${num(g.n)}</td><td class="num">${pct(g.win)}</td><td class="num ${cls(g.avg_net)}">${spct(g.avg_net, 3)}</td></tr>`).join("")}</tbody></table></div>
+  <p class="small muted">Descriptive only; this rule was not part of the tested strategy.</p>` : ""}`;
+  const eq = R.equity_curve.map((r, i) => ({ x: i, y: r.equity, label: r.date, extra: `${r.symbol} ${r.y === 1 ? "hit" : r.y === -1 ? "stop" : "close"} ${spct(r.r)}` }));
+  const idx = Object.fromEntries(R.equity_curve.map((r, i) => [r.date, i]));
+  const bc = R.baseline_curve.filter(r => idx[r.date] != null).map(r => ({ x: idx[r.date], y: r.equity, label: r.date }));
+  lineChart(document.getElementById("eq"), [{ name: "Model", color: "var(--series-1)", pts: eq }, { name: "Random volatile", color: "var(--series-base)", pts: bc }],
+    { ref: 1, yfmt: v => "$" + v.toFixed(2), label: "Growth of one dollar" });
+  calibChart(document.getElementById("cal"), R.calibration[live]);
+}
+
+// ---------- TOOLS
+function renderTools() {
+  const el = document.getElementById("tools");
+  const F = R.families, base = F.find(f => f.kind === "baseline"), full = F.find(f => f.kind === "full");
+  const fams = [...new Set(F.filter(f => f.kind === "add").map(f => f.family))];
+  const sig = R.signals;
+  const famSig = fam => { const s = sig.filter(x => x.family === fam); return [s.filter(x => x.confirmed).length, s.length]; };
+  const rows = fams.map(fm => {
+    const a = F.find(f => f.family === fm && f.kind === "add"), d = F.find(f => f.family === fm && f.kind === "drop");
+    const [c, n] = famSig(fm);
+    return { fm, a, d, c, n, addAuc: a.auc - base.auc, dropAuc: full.auc - d.auc, addNet: a.top1.avg_net - base.top1.avg_net, share: (R.importance_by_family || {})[fm] || 0 };
+  }).sort((p, q) => q.addAuc - p.addAuc);
+  const verdict = r => (r.addAuc > 0.003 && r.c > 0) ? ["yes", "Earned its weight"] : (r.addAuc > 0.001 || r.c > 0) ? ["weak", "Small or mixed"] : ["no", "No measurable value"];
+  const maxA = Math.max(...rows.map(r => Math.abs(r.addAuc)), 0.001);
+  el.innerHTML = `
+  <p>Every tool family was tested two ways, always against the same yardstick: how volatile the stock already is. Volatility alone explains most of who reaches +3%, so a signal only "works" if it adds something on top.</p>
+  <ol class="small">
+    <li><b>Family test (walk-forward):</b> a model using only volatility, then volatility plus one family, each trained on past years and scored on the next. The gain in AUC (ranking skill) is shown, plus the change when the family is removed from the full model.</li>
+    <li><b>Individual signal test:</b> each signal compared with stocks of the same volatility on the same day, discovered on 2016–2021 and re-checked on 2022–2026, with a Benjamini–Hochberg correction for testing ${sig.length} signals at once.</li>
+  </ol>
+  <p class="small muted">Baseline (volatility only): AUC ${base.auc.toFixed(3)}. All signals: AUC ${full.auc.toFixed(3)}. Reference case: ${cfgLabel(R.main_config)}.</p>
+  <div class="tablewrap"><table><thead><tr><th>Tool family</th><th>Verdict</th><th class="num">AUC gain added to volatility</th><th></th><th class="num">AUC lost if removed</th><th class="num">Model #1 avg net change</th><th class="num">Signals confirmed</th><th class="num">Share of model's decisions</th></tr></thead><tbody>
+  ${rows.map(r => { const [k, t] = verdict(r); return `<tr><td>${esc(FAMNAME[r.fm] || r.fm)}</td><td><span class="tag ${k}">${t}</span></td><td class="num ${cls(r.addAuc)}">${r.addAuc >= 0 ? "+" : ""}${r.addAuc.toFixed(4)}</td><td><span class="bar" style="width:${Math.abs(r.addAuc) / maxA * 90}px;background:${r.addAuc >= 0 ? "var(--series-1)" : "var(--series-2)"}"></span></td><td class="num">${r.dropAuc >= 0 ? "" : ""}${r.dropAuc.toFixed(4)}</td><td class="num ${cls(r.addNet)}">${spct(r.addNet, 3)}</td><td class="num">${r.c} / ${r.n}</td><td class="num">${pct(r.share, 1)}</td></tr>`; }).join("")}
+  </tbody></table></div>
+  <p class="small muted">"Earned its weight" = adds at least 0.003 AUC over volatility alone and at least one of its signals survived the multiple-testing correction and the later-period re-check. "Model #1 avg net change" is noisy (one trade a day) and is shown for completeness.</p>
+
+  <h2>Individual signals</h2>
+  <div class="controls">
+    <label for="fsel">Family</label><select id="fsel"><option value="">All</option>${Object.keys(FAMNAME).map(k => `<option value="${k}">${FAMNAME[k]}</option>`).join("")}</select>
+    <label><input type="checkbox" id="conf"> Confirmed only</label>
+    <input type="search" id="q" placeholder="Search signal" aria-label="Search signal">
+  </div>
+  <div class="tablewrap" style="max-height:560px"><table id="sigt"><thead><tr>
+    <th class="sort" data-k="signal">Signal</th><th class="sort" data-k="family">Family</th>
+    <th class="sort num" data-k="disc_n">n (2016–21)</th><th class="sort num" data-k="disc_win">Hit when on</th><th class="sort num" data-k="disc_base">Same-volatility base</th><th class="sort num" data-k="disc_lift">Lift</th><th class="sort num" data-k="disc_q">q-value</th>
+    <th class="sort num" data-k="conf_n">n (2022–26)</th><th class="sort num" data-k="conf_lift">Lift</th><th class="sort num" data-k="conf_p">p</th><th class="sort num" data-k="conf_net_lift">Net lift / trade</th><th class="sort" data-k="confirmed">Confirmed</th></tr></thead><tbody></tbody></table></div>
+  <p class="small muted">Lift = hit rate when the signal is on minus the hit rate of same-volatility stocks that day (percentage points). q-value = false-discovery-adjusted p-value. Confirmed = q &lt; 0.05 in 2016–21 and the same direction with p &lt; 0.05 in 2022–26.</p>`;
+  let key = "disc_lift", dir = -1;
+  const draw = () => {
+    const f = document.getElementById("fsel").value, c = document.getElementById("conf").checked, q = document.getElementById("q").value.toLowerCase();
+    const rows = sig.filter(s => (!f || s.family === f) && (!c || s.confirmed) && (!q || s.signal.toLowerCase().includes(q)))
+      .sort((a, b) => { const x = a[key], y = b[key]; if (x == null) return 1; if (y == null) return -1; return (x > y ? 1 : x < y ? -1 : 0) * dir; });
+    document.querySelector("#sigt tbody").innerHTML = rows.map(s => `<tr><td>${esc(s.signal)}</td><td class="small">${esc(FAMNAME[s.family] || s.family)}</td><td class="num">${num(s.disc_n)}</td><td class="num">${pct(s.disc_win)}</td><td class="num">${pct(s.disc_base)}</td><td class="num ${cls(s.disc_lift)}">${s.disc_lift == null ? "–" : (s.disc_lift * 100).toFixed(2)}</td><td class="num">${s.disc_q == null ? "–" : s.disc_q < 0.001 ? "<0.001" : s.disc_q.toFixed(3)}</td><td class="num">${num(s.conf_n)}</td><td class="num ${cls(s.conf_lift)}">${s.conf_lift == null ? "–" : (s.conf_lift * 100).toFixed(2)}</td><td class="num">${s.conf_p == null ? "–" : s.conf_p < 0.001 ? "<0.001" : s.conf_p.toFixed(3)}</td><td class="num ${cls(s.conf_net_lift)}">${spct(s.conf_net_lift, 3)}</td><td>${s.confirmed ? '<span class="tag yes">yes</span>' : '<span class="tag">no</span>'}</td></tr>`).join("");
+  };
+  ["fsel", "conf", "q"].forEach(id => document.getElementById(id).addEventListener("input", draw));
+  document.querySelectorAll("#sigt th.sort").forEach(th => th.addEventListener("click", () => { if (key === th.dataset.k) dir = -dir; else { key = th.dataset.k; dir = -1; } draw(); }));
+  draw();
+}
+
+// ---------- METHOD
+function renderMethod() {
+  const el = document.getElementById("method");
+  const B = R.base;
+  el.innerHTML = `
+  <h2 style="margin-top:0">What the tool does each morning</h2>
+  <ol class="steps">
+    <li>Takes every NYSE and Nasdaq stock that, as of the previous close, traded above $5 with at least $20 million a day of trading over the last 20 days (about ${num(B.avg_universe)} stocks on a typical day).</li>
+    <li>Computes ${R.importance ? R.importance.length : ""} signals for each, using only prices up to the previous close.</li>
+    <li>Scores each stock with a gradient-boosted model trained on past years, and picks the highest score.</li>
+    <li>Looks up how often stocks with that score range reached +3% before the stop in later years the model had not seen, and what they earned after costs.</li>
+    <li>Applies the bar. If it fails, the answer is "no trade", and the best candidate is shown with the reason.</li>
+  </ol>
+  <h2>How a trade is scored in the backtest</h2>
+  <ul class="plain">
+    <li>Buy at the official opening price. Target = open + 3%, stop = open − stop distance.</li>
+    <li>If the daily bar shows only one level was touched, that settles it. If both were touched, 5-minute bars decide which came first; if both fall inside the same 5-minute bar, it counts as a loss.</li>
+    <li>If neither is hit, sell at the close (or at the close of the last day for multi-day holds; a later day that opens beyond a level fills at that open).</li>
+    <li>Costs: ${(R.costs.cost_side * 100).toFixed(2)}% per side for spread and slippage, plus ${(R.costs.stop_slip * 100).toFixed(2)}% on stop exits. Alpaca charges no commission.</li>
+  </ul>
+  <h2>Guarding against fooling ourselves</h2>
+  <ul class="plain">
+    <li><b>Walk-forward:</b> for each test year ${R.test_years[0]}–${R.test_years[R.test_years.length - 1]}, the model was trained only on earlier rows, with a ${R.embargo_days}-day gap so no training outcome overlaps the test year. Model settings were fixed in advance and never tuned on test years.</li>
+    <li><b>Look-ahead audit:</b> ${AUDIT.passed ? `<span class="tag yes">passed</span>` : `<span class="tag no">see notes</span>`} Every signal was recomputed for ${AUDIT.symbols_tested || "a sample of"} random stocks using data cut off at ${(AUDIT.cutoffs || []).length} random dates, with the entry-day bar blanked; all ${Object.keys(AUDIT.features || {}).length} signals matched the full-history values exactly.</li>
+    <li><b>Point-in-time universe:</b> the price and liquidity filters use raw (unadjusted) prices as of the previous close, so a later reverse split cannot sneak a penny stock in.</li>
+    <li><b>Multiple testing:</b> signal results use a false-discovery-rate correction and a separate later period for confirmation.</li>
+    <li><b>Independent review:</b> ${REVIEW ? esc(REVIEW.summary) : "pending"}</li>
+  </ul>
+  <h2>Limits you should know</h2>
+  <ul class="plain">
+    <li><b>Delisted stocks are only partly included.</b> Alpaca returns history for many delisted symbols and the tool includes all it lists, but some delisted companies (Twitter, for example) are missing from Alpaca's list, so results lean slightly toward survivors.</li>
+    <li>A ticker reused by a different company over time can be mixed up. Dividends are not adjusted (ex-dividend days look like small drops).</li>
+    <li>The opening price is assumed fillable with ${(R.costs.cost_side * 100).toFixed(2)}% slippage. Real fills on volatile names at the open can be worse, especially for large orders.</li>
+    <li>5-minute bars can hide the order of events inside a bar; ties are counted as losses, which makes results slightly pessimistic.</li>
+    <li>The probability shown is the historical frequency for similar scores. It is not a promise, and markets change.</li>
+    <li>Data: Alpaca free plan, full-market (SIP) history from 2016. The pre-market price check uses data delayed 15 minutes, topped up with the IEX feed.</li>
+  </ul>
+  <p class="note">This is a statistical tool, not financial advice.</p>`;
+}
+
+renderToday(); renderCands(); renderBT(); renderTools(); renderMethod();
+show(start);
+</script>
